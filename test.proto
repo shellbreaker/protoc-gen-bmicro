@@ -1,0 +1,59 @@
+// upload.proto
+syntax = "proto3";
+package test;
+option go_package = ".;gateway";
+
+//import "google/api/annotations.proto";
+
+//12345
+message Response {
+  //[4 0 2 0]
+  int64 code = 1;   //@json:"code" form:"code" mark:"####################################"
+  //[4 0 2 1]
+  string msg = 2;   //msg
+}
+
+//67890
+message Request {
+  //[4 1 2 0]
+  string query = 3; //query
+  //[4 1 2 1]
+  string body = 4;  //body
+  //[4 1 2 2]
+  string form = 5;  //form
+}
+
+//?????
+message test {
+  //[4 2 2 0]
+  string name = 6;  //test.name
+  //[4 2 2 1]
+  uint64 unit = 7;    //test.unit
+}
+
+//1112131415
+service REST {
+  // @Title 创建文件上传地址
+  // @Description 创建文件上传地址,把文件按照返回值中的method方法发送到src,注意非浏览器客户端这步需要在header头中加上Content-Type且需要和上一步一致
+  // @Param	name		query 	string	true		"名字"
+  // @Success 200 {object} upload.UploadLink
+  // @router  /api/v1/resource  [get]
+  // @gateway /api/v1/resource,get:Get
+  rpc Get(Request) returns (Response) {
+//    option (google.api.http) = {
+//      post: "/v1/example/echo"
+//      body: "*"
+//    };
+  }
+
+  // @REST.Post
+  rpc Post(Request) returns (Response) {
+//    option (google.api.http) = {
+//      get: "/v1/example/echo"
+//    };
+  }
+}
+
+service GREETING {
+
+}
