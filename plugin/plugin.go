@@ -70,7 +70,7 @@ func (p *Plugin) Generate(file *generator.FileDescriptor) {
 }
 
 func (p *Plugin) GenerateImports(file *generator.FileDescriptor) {
-	//p.write("\"context\"")
+	p.write("\"context\"")
 	p.write("\"strings\"")
 	p.write("\"github.com/astaxie/beego\"")
 	p.write("bctx \"github.com/astaxie/beego/context\"")
@@ -82,21 +82,48 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 	for _, g := range sg {
 		if g != nil {
 			srvName := g.service.GetName()
-			p.write("type %sController struct {", strings.ToLower(srvName))
+			lowerSrvName := strings.ToLower(srvName)
+
+			//p.write("func Register%sGateway(cli %sService) {", srvName, srvName)
+			//p.write("beego.Router(\"%s\", New%sGateway(cli))", "a", srvName)
+			//p.write("}")
+
+			//p.write("func New%sGateway(cli %sService) *%sController {", srvName, srvName, lowerSrvName)
+			//p.write("return &%sController{", lowerSrvName)
+			//p.write("microClient: cli,")
+			//p.write("}")
+			//p.write("}")
+
+			p.write("type %sController struct {", lowerSrvName)
 			p.write("GatewayController")
+			p.write("microClient %sService", srvName)
 			p.write("}")
 
 			for _, m := range g.methodExtractors {
 				if m.Extract() == nil {
 					ccMethod, uri := generator.CamelCase(m.gateway.Method), m.gateway.URI
-					ffp, inputType := fmt.Sprintf("%s%s%s", srvName, ccMethod, uri), m.method.GetInputType()
+					ffp := fmt.Sprintf("%s%s%s", srvName, ccMethod, uri)
+					inputType, outputType := m.method.GetInputType(), m.method.GetOutputType()
 					if _, ex := fnFingerPrints[ffp]; !ex {
 						fnFingerPrints[ffp] = true
-						p.write("func (c *%sController) %s() {", strings.ToLower(srvName), ccMethod)
-						p.write("//c.ServeJson(new(%s))", inputType[strings.LastIndex(inputType, ".")+1:])
-						p.write("c.ServeJson(nil)")
+						input, methodName := inputType[strings.LastIndex(inputType, ".")+1:], m.method.GetName()
+						output := outputType[strings.LastIndex(outputType, ".")+1:]
+						p.write("//output:%s", output)
+
+						p.write("type %s_%s struct {", lowerSrvName, methodName)
+						p.write("%s", input)
+						p.write("microClient %sService", srvName)
 						p.write("}")
 
+						p.write("func (i *%s_%s) Exec(_ *bctx.Context) (interface{}, error) {", lowerSrvName, methodName)
+						p.write("return i.microClient.%s(context.TODO(), &i.%s)", methodName, input)
+						p.write("}\n")
+
+						p.write("func (c *%sController) %s() {", strings.ToLower(srvName), ccMethod)
+						p.write("api := new(%s_%s)", lowerSrvName, methodName)
+						p.write("api.microClient = c.microClient")
+						p.write("c.ServeJson(api)")
+						p.write("}")
 					}
 				}
 			}
@@ -106,12 +133,9 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 
 func (p *Plugin) generateHelperFuncs() {
 	defines := `var json = jsoniter.ConfigCompatibleWithStandardLibrary
-	type GatewayResponse interface {
-		GetData() interface{}
-	}
 
 	type JsonApi interface {
-		Exec(*bctx.Context) GatewayResponse
+		Exec(*bctx.Context) (interface{}, error)
 	}
 
 	type GatewayController struct {
@@ -119,9 +143,15 @@ func (p *Plugin) generateHelperFuncs() {
 	}
 
 	func (g *GatewayController) ServeJson(impl JsonApi) {
-		var r GatewayResponse
+		var r interface{}
+		var err error
 		defer func() {
-			g.Data["json"] = r.GetData()
+			if err != nil {
+
+			} else {
+
+			}
+			g.Data["json"] = r
 			g.ServeJSON()
 		}()
 		if strings.Contains(strings.ToLower(g.Ctx.Input.Header("content-type")), "json") {
@@ -135,7 +165,7 @@ func (p *Plugin) generateHelperFuncs() {
 				return
 			}
 		}
-		r = impl.Exec(g.Ctx)
+		r, err = impl.Exec(g.Ctx)
 	}
 	
 	`
