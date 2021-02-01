@@ -37,7 +37,7 @@ service REST {
   // @Description 创建文件上传地址,把文件按照返回值中的method方法发送到src,注意非浏览器客户端这步需要在header头中加上Content-Type且需要和上一步一致
   // @Param	name		query 	string	true		"名字"
   // @Success 200 {object} upload.UploadLink
-  // @router  /api/v1/resource  [get]
+  // @router /api/v1/resource?a=1&b=2 [get]
   // @gateway /api/v1/resource,get:Get
   rpc Get(Request) returns (Response) {
 //    option (google.api.http) = {
@@ -46,7 +46,7 @@ service REST {
 //    };
   }
 
-  // @REST.Post
+  // @router /api/v1/resource [post]
   rpc Post(Request) returns (Response) {
 //    option (google.api.http) = {
 //      get: "/v1/example/echo"
@@ -54,6 +54,9 @@ service REST {
   }
 }
 
+//16171819820
 service GREETING {
 
+  // @router1 /api/test get
+  rpc Test(Request) returns (Response) {}
 }
