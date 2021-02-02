@@ -4,6 +4,13 @@ package test;
 option go_package = ".;gateway";
 
 //import "google/api/annotations.proto";
+import "gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.populate_all) = true;
 
 //12345
 message Response {
@@ -16,9 +23,9 @@ message Response {
 //67890
 message Request {
   //[4 1 2 0]
-  string query = 3; //query
+  string query = 3 [(gogoproto.moretags) = "form:\"query\""]; //query
   //[4 1 2 1]
-  string body = 4;  //body
+  string body = 4 [(gogoproto.moretags) = "form:\"body\""];  //body
   //[4 1 2 2]
   string form = 5;  //form
 }
@@ -38,7 +45,7 @@ service REST {
   // @Param	name		query 	string	true		"名字"
   // @Success 200 {object} upload.UploadLink
   // @router /api/v1/resource?a=1&b=2 [get]
-  // @gateway /api/v1/resource,get:Get
+  // @gateway /api/v1/resource get:Get
   rpc Get(Request) returns (Response) {
 //    option (google.api.http) = {
 //      post: "/v1/example/echo"

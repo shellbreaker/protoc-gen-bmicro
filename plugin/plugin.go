@@ -65,129 +65,143 @@ func (p *Plugin) Generate(file *generator.FileDescriptor) {
 		}
 	}
 
+	p.generateHelpers()
 	p.generateGateway(srvGenerators)
-	p.generateHelperFuncs()
 }
 
 func (p *Plugin) GenerateImports(file *generator.FileDescriptor) {
 	p.write("\"context\"")
 	p.write("\"strings\"")
+	p.write("\"reflect\"")
 	p.write("\"github.com/astaxie/beego\"")
 	p.write("bctx \"github.com/astaxie/beego/context\"")
 	p.write("jsoniter \"github.com/json-iterator/go\"")
+	p.write("microErr \"github.com/micro/go-micro/v2/errors\"")
 }
 
 func (p *Plugin) generateGateway(sg []*serviceGenerator) {
-	fnFingerPrints, routerFingerPrints := make(map[string]bool), make(map[string]string)
+	fnFingerPrints := make(map[string]bool)
 	for _, g := range sg {
 		if g != nil {
 			srvName := g.service.GetName()
-			lowerSrvName := strings.ToLower(srvName)
+			//lowerSrvName := strings.ToLower(srvName)
 
-			p.write("type %sController struct {", lowerSrvName)
-			p.write("GatewayController")
-			p.write("microClient %sService", srvName)
-			p.write("}")
-
+			p.write("func Register%sGateway(cli %sService, opts ...Option) {", srvName, srvName)
+			p.write(`settings := new(gatewaySettings)
+					for _, opt := range opts {
+						opt.fn(settings)
+					}
+			`)
 			for _, m := range g.methodExtractors {
 				if m.Extract() == nil {
-					ccMethod, uri := generator.CamelCase(m.gateway.Method), m.gateway.URI
+					ccMethod, uri := generator.CamelCase(m.GatewayMethod()), m.GatewayURI()
 					ffp := fmt.Sprintf("%s%s%s", srvName, ccMethod, uri)
 					inputType, outputType := m.method.GetInputType(), m.method.GetOutputType()
 					if _, ex := fnFingerPrints[ffp]; !ex {
 						fnFingerPrints[ffp] = true
 						input, methodName := inputType[strings.LastIndex(inputType, ".")+1:], m.method.GetName()
 						output := outputType[strings.LastIndex(outputType, ".")+1:]
-						p.write("//output:%s", output)
-						p.write("type %s_%s struct {", lowerSrvName, methodName)
-						p.write("%s", input)
-						p.write("microClient %sService", srvName)
-						p.write("}")
-
-						p.write("func (i *%s_%s) Exec(_ *bctx.Context) (interface{}, error) {", lowerSrvName, methodName)
-						p.write("return i.microClient.%s(context.TODO(), &i.%s)", methodName, input)
-						p.write("}\n")
-
-						p.write("func (c *%sController) %s() {", strings.ToLower(srvName), ccMethod)
-						p.write("api := new(%s_%s)", lowerSrvName, methodName)
-						p.write("api.microClient = c.microClient")
-						p.write("c.ServeJson(api)")
-						p.write("}")
-
-						rfp := fmt.Sprintf("\"%s\", &%sController", m.gateway.URI, lowerSrvName)
-						if _, in := routerFingerPrints[rfp]; !in {
-							routerFingerPrints[rfp] = srvName
-						}
+						p.write("//%s(%s) %s", methodName, input, output)
+						p.write(`beego.%s("%s", func(c *bctx.Context) {
+							var data *%s
+							var e error
+							err := settings.CloneError()
+							defer func() {
+								if e == nil {
+									c.Output.JSON(data, true, true)
+								} else {
+									c.Output.JSON(err, true, true)
+								}
+							}()
+							params := new(%s)
+							e = ParseParams(c, params)
+							if e == nil {
+								data, e = cli.%s(context.TODO(), params)
+								if e != nil {
+									err.Set(10500, microErr.Parse(e.Error()).GetDetail())
+								}
+							} else {
+								err.Set(10400, e.Error())
+							}
+					
+						})`, ccMethod, m.GatewayURI(), output, input, methodName)
 					}
 				}
 			}
-
-			p.write("func Register%sGateway(cli %sService) {", srvName, srvName)
-			for rfp, sName := range routerFingerPrints {
-				if sName == srvName {
-					p.write("beego.Router(%s{microClient: cli})", rfp)
-				}
-			}
-			p.write("}")
-
+			p.write("}\n")
 		}
 	}
 }
 
-func (p *Plugin) generateHelperFuncs() {
+func (p *Plugin) generateHelpers() {
 	defines := `var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-	type JsonApi interface {
-		Exec(*bctx.Context) (interface{}, error)
-	}
-
-	type GatewayController struct {
-		beego.Controller
-	}
-
-	func (g *GatewayController) ServeJson(impl JsonApi) {
-		var r interface{}
-		var err error
-		defer func() {
-			if err != nil {
-
-			} else {
-
-			}
-			g.Data["json"] = r
-			g.ServeJSON()
-		}()
-		if strings.Contains(strings.ToLower(g.Ctx.Input.Header("content-type")), "json") {
-			if e := json.Unmarshal(g.Ctx.Input.RequestBody, impl); e != nil {
-				//code, msg
-				return
-			}
+	func ParseParams(c *bctx.Context, obj interface{}) (err error) {
+		if strings.Contains(strings.ToLower(c.Input.Header("content-type")), "json") {
+			err = json.Unmarshal(c.Input.RequestBody, obj)
 		} else {
-			if e := g.ParseForm(impl); e != nil {
-				//code, msg
-				return
+			err = c.Request.ParseForm()
+			if err == nil {
+				err = beego.ParseForm(c.Request.Form, obj)
 			}
 		}
-		r, err = impl.Exec(g.Ctx)
+		return
 	}
-	
+
+	type gatewaySettings struct {
+		CustomError Error
+	}
+
+	func (s *gatewaySettings) CloneError() Error {
+		if s.CustomError != nil {
+			rv := reflect.ValueOf(s.CustomError)
+			if rv.Kind() == reflect.Ptr {
+				rv = rv.Elem()
+			}
+			err, ok := reflect.New(rv.Type()).Interface().(Error)
+			if ok {
+				return err
+			}
+		}
+		return new(ErrorBase)
+	}
+
+	type Option struct {
+		fn func(s *gatewaySettings)
+	}
+
+	func SetCustomError(e Error) Option {
+		return Option{func(s *gatewaySettings) {
+			s.CustomError = e
+		}}
+	}
+
+	type Error interface {
+		Set(int, string)
+	}
 	`
-
 	p.write(defines)
-
+	p.write("type ErrorBase struct {")
+	p.write("Code int `json:\"code\"`")
+	p.write("Msg string `json:\"msg\"`")
+	p.write(`}
+		func (ei *ErrorBase) Set(c int, m string) {
+			ei.Code, ei.Msg = c, m
+		}
+	`)
 }
 
-func (p *Plugin) write(s string, args ...interface{}) { p.core.P(fmt.Sprintf(s, args...)) }
+func (p *Plugin) write(s string, args ...interface{}) {
+	p.core.P(fmt.Sprintf(s, args...))
+}
 
+//TODO: validation
 type messageField struct {
 	field            *descriptor.FieldDescriptorProto
 	trailingComments string
 }
 
-func (m *messageField) extract() {
-	//fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>", m.field, ":::: message ::::", m.trailingComments, "<<<<<<<<<<<<<<<<<<<<<<<<<<<                         ")
-
-}
+func (m *messageField) extract() {}
 
 type ServiceExtractor interface {
 	Extract() error

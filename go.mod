@@ -1,10 +1,13 @@
 module protoc-gen-bmicro
 
-go 1.13
+go 1.15
 
 require (
+	github.com/astaxie/beego v1.12.3
 	github.com/gogo/protobuf v1.3.2
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.1.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0
-	google.golang.org/protobuf v1.25.0
+	github.com/golang/protobuf v1.4.2
+	github.com/json-iterator/go v1.1.10
+	github.com/micro/go-micro/v2 v2.9.1
 )
+
+replace google.golang.org/grpc => google.golang.org/grpc v1.26.0
