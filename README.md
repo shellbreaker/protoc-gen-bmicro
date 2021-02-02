@@ -16,10 +16,15 @@ go install
 ```
 
 ### Protobuf Coding
+> Use leading comment at service.rpc.[method]:
+> // @router /api/v1/file [get]
+
 ```protobuf
 syntax = "proto3";
 package test;
-option go_package = ".;gateway";
+option go_package = ".;test";
+
+import "gogo.proto";
 
 message Request {
   string query = 1 [(gogoproto.moretags) = "form:\"query\""]; //use form tag to get query/form value
@@ -51,6 +56,6 @@ func main() {
     srv.Init()
     cli := srv.NewTestService("go.rpc.test", srv.Client())
     
-    pb.RegisterTestGateway(cli)
+    test.RegisterTestGateway(cli)
 }
 ```
