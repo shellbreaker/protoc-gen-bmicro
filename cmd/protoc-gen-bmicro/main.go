@@ -1,13 +1,12 @@
 package main
 
 import (
-	"io/ioutil"
-	"os"
-	"protoc-gen-bmicro/plugin"
-	"strings"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
+	"github.com/shellbreaker/protoc-gen-bmicro/plugin"
+	"io/ioutil"
+	"os"
+	"strings"
 )
 
 func main() {

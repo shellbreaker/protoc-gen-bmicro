@@ -1,4 +1,4 @@
-module protoc-gen-bmicro
+module github.com/shellbreaker/protoc-gen-bmicro
 
 go 1.15
 
