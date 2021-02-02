@@ -78,21 +78,11 @@ func (p *Plugin) GenerateImports(file *generator.FileDescriptor) {
 }
 
 func (p *Plugin) generateGateway(sg []*serviceGenerator) {
-	fnFingerPrints := make(map[string]bool)
+	fnFingerPrints, routerFingerPrints := make(map[string]bool), make(map[string]string)
 	for _, g := range sg {
 		if g != nil {
 			srvName := g.service.GetName()
 			lowerSrvName := strings.ToLower(srvName)
-
-			//p.write("func Register%sGateway(cli %sService) {", srvName, srvName)
-			//p.write("beego.Router(\"%s\", New%sGateway(cli))", "a", srvName)
-			//p.write("}")
-
-			//p.write("func New%sGateway(cli %sService) *%sController {", srvName, srvName, lowerSrvName)
-			//p.write("return &%sController{", lowerSrvName)
-			//p.write("microClient: cli,")
-			//p.write("}")
-			//p.write("}")
 
 			p.write("type %sController struct {", lowerSrvName)
 			p.write("GatewayController")
@@ -109,7 +99,6 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 						input, methodName := inputType[strings.LastIndex(inputType, ".")+1:], m.method.GetName()
 						output := outputType[strings.LastIndex(outputType, ".")+1:]
 						p.write("//output:%s", output)
-
 						p.write("type %s_%s struct {", lowerSrvName, methodName)
 						p.write("%s", input)
 						p.write("microClient %sService", srvName)
@@ -124,9 +113,23 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 						p.write("api.microClient = c.microClient")
 						p.write("c.ServeJson(api)")
 						p.write("}")
+
+						rfp := fmt.Sprintf("\"%s\", &%sController", m.gateway.URI, lowerSrvName)
+						if _, in := routerFingerPrints[rfp]; !in {
+							routerFingerPrints[rfp] = srvName
+						}
 					}
 				}
 			}
+
+			p.write("func Register%sGateway(cli %sService) {", srvName, srvName)
+			for rfp, sName := range routerFingerPrints {
+				if sName == srvName {
+					p.write("beego.Router(%s{microClient: cli})", rfp)
+				}
+			}
+			p.write("}")
+
 		}
 	}
 }
@@ -242,7 +245,7 @@ func (m *methodExtractor) GatewayMethod() string {
 
 func (m *methodExtractor) extractURI(u string) string {
 	if uParsed, err := url.ParseRequestURI(u); err == nil {
-		return uParsed.EscapedPath()
+		return uParsed.Path
 	}
 	return ""
 }

@@ -46,7 +46,7 @@ service REST {
 //    };
   }
 
-  // @router /api/v1/resource [post]
+  // @router /api/v1/resource/:(\\d+) [post]
   rpc Post(Request) returns (Response) {
 //    option (google.api.http) = {
 //      get: "/v1/example/echo"
