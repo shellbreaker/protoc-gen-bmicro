@@ -1,0 +1,38 @@
+// upload.proto
+syntax = "proto3";
+package example;
+option go_package = "./pb";
+
+import "gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.populate_all) = true;
+
+message Response {
+  int64 code = 1 [(gogoproto.jsontag) = "code"];
+  string msg = 2 [(gogoproto.jsontag) = "msg"];
+}
+
+message Request {
+  string numeric = 4 [(gogoproto.moretags) = "valid:\"Required;Numeric\" form:\"numeric\"", (gogoproto.jsontag) = "numeric"];
+  int64 int = 8 [(gogoproto.moretags) = "form:\"int\"", (gogoproto.jsontag) = "int"];
+  string email = 16 [(gogoproto.moretags) = "form:\"email\"", (gogoproto.jsontag) = "email"];
+}
+
+message Null {}
+
+service RestFul {
+  // @router /api/v1/example [get]
+  rpc Get(Request) returns (Response) {}
+
+  // @router /api/v1/example/:(\\d+) [post]
+  rpc Post(Request) returns (Response) {}
+}
+
+service Greeting {
+  // @router /api/v1/greeting [get]
+  rpc SayHello(Null) returns (Response) {}
+}

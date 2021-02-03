@@ -1,0 +1,1 @@
+# protoc -I="." -I="$GOPATH/src/github.com/gogo/protobuf/gogoproto/" -I="$GOPATH/src/github.com/gogo/protobuf/" --bmicro_out=./examples --plugin=protoc-gen-bmicro --micro_out=./examples --gofast_out=./examples/ ./examples/example.proto
