@@ -59,3 +59,11 @@ func main() {
     test.RegisterTestGateway(cli)
 }
 ```
+
+## TODOs:
+* [x] gen-code
+* [x] beego.validation
+* [ ] rate-limiting
+* [ ] caching
+* [ ] loging
+* [ ] authorization

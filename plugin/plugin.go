@@ -78,22 +78,30 @@ func (p *Plugin) GenerateImports(file *generator.FileDescriptor) {
 
 func (p *Plugin) generateValidation(msgs []*generator.Descriptor) {
 	for _, msg := range msgs {
-		p.write(`func (t *%s) Validate() error {
-			valid := validation.Validation{}
-			b, err := valid.Valid(t)
-			if err == nil {
-				if !b {
-					errMsgs := make([]string, 0)
-					for _, e := range valid.Errors {
-						errMsgs = append(errMsgs, e.Key + ":" + e.Message)
-					}
-					if len(errMsgs) > 0 {
-						err = errors.New(strings.Join(errMsgs, ";"))
+		genFlag := false
+		for _, field := range msg.GetField() {
+			if o := field.GetOptions(); o != nil && strings.Contains(o.String(), "valid:") {
+				genFlag = true
+			}
+		}
+		if genFlag {
+			p.write(`func (t *%s) Validate() error {
+				valid := validation.Validation{}
+				b, err := valid.Valid(t)
+				if err == nil {
+					if !b {
+						errMsgs := make([]string, 0)
+						for _, e := range valid.Errors {
+							errMsgs = append(errMsgs, e.Key + ":" + e.Message)
+						}
+						if len(errMsgs) > 0 {
+							err = errors.New(strings.Join(errMsgs, ";"))
+						}
 					}
 				}
-			}
-			return err
-		}`, generator.CamelCase(msg.GetName()))
+				return err
+			}`+"\n", generator.CamelCase(msg.GetName()))
+		}
 	}
 }
 
