@@ -67,12 +67,11 @@ func (p *Plugin) Generate(file *generator.FileDescriptor) {
 func (p *Plugin) GenerateImports(file *generator.FileDescriptor) {
 	p.write("\"context\"")
 	p.write("\"strings\"")
-	p.write("\"reflect\"")
 	p.write("\"errors\"")
+	p.write("gw \"github.com/shellbreaker/protoc-gen-bmicro/gateway\"")
 	p.write("\"github.com/astaxie/beego\"")
 	p.write("\"github.com/astaxie/beego/validation\"")
 	p.write("bctx \"github.com/astaxie/beego/context\"")
-	p.write("jsoniter \"github.com/json-iterator/go\"")
 	p.write("microErr \"github.com/micro/go-micro/v2/errors\"")
 }
 
@@ -111,12 +110,8 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 		if g != nil {
 			srvName := g.service.GetName()
 
-			p.write("func Register%sGateway(cli %sService, opts ...Option) {", srvName, srvName)
-			p.write(`settings := new(gatewaySettings)
-					for _, opt := range opts {
-						opt.fn(settings)
-					}
-			`)
+			p.write(`func Register%sGateway(cli %sService, opts ...gw.Option) {
+							settings := gw.Options(opts).Settings()`, srvName, srvName)
 			for _, m := range g.methodExtractors {
 				if m.Extract() == nil {
 					ccMethod, uri := generator.CamelCase(m.GatewayMethod()), m.GatewayURI()
@@ -139,7 +134,7 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 								}
 							}()
 							params := new(%s)
-							e = ParseParams(c, params)
+							e = gw.ParseParams(c, params)
 							if e == nil {
 								data, e = cli.%s(context.TODO(), params)
 								if e != nil {
@@ -158,63 +153,7 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 	}
 }
 
-func (p *Plugin) generateHelpers() {
-	defines := `var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-	func ParseParams(c *bctx.Context, obj interface{}) (err error) {
-		if strings.Contains(strings.ToLower(c.Input.Header("content-type")), "json") {
-			err = json.Unmarshal(c.Input.RequestBody, obj)
-		} else {
-			err = c.Request.ParseForm()
-			if err == nil {
-				err = beego.ParseForm(c.Request.Form, obj)
-			}
-		}
-		return
-	}
-
-	type gatewaySettings struct {
-		CustomError Error
-	}
-
-	func (s *gatewaySettings) NewError() Error {
-		if s.CustomError != nil {
-			rv := reflect.ValueOf(s.CustomError)
-			if rv.Kind() == reflect.Ptr {
-				rv = rv.Elem()
-			}
-			err, ok := reflect.New(rv.Type()).Interface().(Error)
-			if ok {
-				return err
-			}
-		}
-		return new(ErrorBase)
-	}
-
-	type Option struct {
-		fn func(s *gatewaySettings)
-	}
-
-	func SetCustomError(e Error) Option {
-		return Option{func(s *gatewaySettings) {
-			s.CustomError = e
-		}}
-	}
-
-	type Error interface {
-		Set(int, string)
-	}
-	`
-	p.write(defines)
-	p.write("type ErrorBase struct {")
-	p.write("Code int `json:\"code\"`")
-	p.write("Msg string `json:\"msg\"`")
-	p.write(`}
-		func (ei *ErrorBase) Set(c int, m string) {
-			ei.Code, ei.Msg = c, m
-		}
-	`)
-}
+func (p *Plugin) generateHelpers() {}
 
 func (p *Plugin) write(s string, args ...interface{}) {
 	p.core.P(fmt.Sprintf(s, args...))
