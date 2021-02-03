@@ -34,8 +34,7 @@ func (p *Plugin) Generate(file *generator.FileDescriptor) {
 		return
 	}
 
-	msgs, srvs := file.Messages(), file.GetService()
-
+	srvs := file.GetService()
 	srvGenerators := make([]*serviceGenerator, len(srvs))
 
 	for _, loc := range file.GetSourceCodeInfo().GetLocation() {
@@ -45,11 +44,6 @@ func (p *Plugin) Generate(file *generator.FileDescriptor) {
 		locPath, leadingComments, trailingComments := loc.GetPath(), loc.GetLeadingComments(), loc.GetTrailingComments()
 		if len(locPath) >= 4 && (trailingComments != "" || leadingComments != "") {
 			switch {
-			case locPath[0] == 4 && trailingComments != "":
-				(&messageField{
-					field:            msgs[locPath[1]].Field[locPath[3]],
-					trailingComments: trailingComments,
-				}).extract()
 			case locPath[0] == 6 && leadingComments != "":
 				if g := srvGenerators[locPath[1]]; g == nil {
 					srvGenerators[locPath[1]] = &serviceGenerator{
@@ -66,6 +60,7 @@ func (p *Plugin) Generate(file *generator.FileDescriptor) {
 	}
 
 	p.generateHelpers()
+	p.generateValidation(file.Messages())
 	p.generateGateway(srvGenerators)
 }
 
@@ -73,10 +68,33 @@ func (p *Plugin) GenerateImports(file *generator.FileDescriptor) {
 	p.write("\"context\"")
 	p.write("\"strings\"")
 	p.write("\"reflect\"")
+	p.write("\"errors\"")
 	p.write("\"github.com/astaxie/beego\"")
+	p.write("\"github.com/astaxie/beego/validation\"")
 	p.write("bctx \"github.com/astaxie/beego/context\"")
 	p.write("jsoniter \"github.com/json-iterator/go\"")
 	p.write("microErr \"github.com/micro/go-micro/v2/errors\"")
+}
+
+func (p *Plugin) generateValidation(msgs []*generator.Descriptor) {
+	for _, msg := range msgs {
+		p.write(`func (t *%s) Validate() error {
+			valid := validation.Validation{}
+			b, err := valid.Valid(t)
+			if err == nil {
+				if !b {
+					errMsgs := make([]string, 0)
+					for _, e := range valid.Errors {
+						errMsgs = append(errMsgs, e.Key + ":" + e.Message)
+					}
+					if len(errMsgs) > 0 {
+						err = errors.New(strings.Join(errMsgs, ";"))
+					}
+				}
+			}
+			return err
+		}`, generator.CamelCase(msg.GetName()))
+	}
 }
 
 func (p *Plugin) generateGateway(sg []*serviceGenerator) {
@@ -84,7 +102,6 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 	for _, g := range sg {
 		if g != nil {
 			srvName := g.service.GetName()
-			//lowerSrvName := strings.ToLower(srvName)
 
 			p.write("func Register%sGateway(cli %sService, opts ...Option) {", srvName, srvName)
 			p.write(`settings := new(gatewaySettings)
@@ -105,7 +122,7 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 						p.write(`beego.%s("%s", func(c *bctx.Context) {
 							var data *%s
 							var e error
-							err := settings.CloneError()
+							err := settings.NewError()
 							defer func() {
 								if e == nil {
 									c.Output.JSON(data, true, true)
@@ -152,7 +169,7 @@ func (p *Plugin) generateHelpers() {
 		CustomError Error
 	}
 
-	func (s *gatewaySettings) CloneError() Error {
+	func (s *gatewaySettings) NewError() Error {
 		if s.CustomError != nil {
 			rv := reflect.ValueOf(s.CustomError)
 			if rv.Kind() == reflect.Ptr {
@@ -193,20 +210,6 @@ func (p *Plugin) generateHelpers() {
 
 func (p *Plugin) write(s string, args ...interface{}) {
 	p.core.P(fmt.Sprintf(s, args...))
-}
-
-//TODO: validation
-type messageField struct {
-	field            *descriptor.FieldDescriptorProto
-	trailingComments string
-}
-
-func (m *messageField) extract() {}
-
-type ServiceExtractor interface {
-	Extract() error
-	GatewayMethod() string
-	GatewayURI() string
 }
 
 type serviceGenerator struct {
