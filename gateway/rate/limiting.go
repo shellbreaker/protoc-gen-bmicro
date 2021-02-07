@@ -71,6 +71,12 @@ func Ip(ip string) Option {
 	}}
 }
 
+func DependOnIp() Option {
+	return Option{fn: func(setting *rateLimitingSetting) {
+		setting.dependOnIp = true
+	}}
+}
+
 func Limit(every time.Duration) Option {
 	return Option{fn: func(setting *rateLimitingSetting) {
 		setting.rate = rate.Every(every)
