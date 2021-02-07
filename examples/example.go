@@ -1,15 +1,13 @@
-package examples
+package main
 
 import (
 	"context"
 	"github.com/astaxie/beego"
+	"github.com/micro/go-micro/v2"
 	"github.com/shellbreaker/protoc-gen-bmicro/examples/pb"
 	"github.com/shellbreaker/protoc-gen-bmicro/gateway"
-	//_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway"
-	//_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
-	//_ "google.golang.org/grpc/cmd/protoc-gen-go-grpc"
-	//_ "google.golang.org/protobuf/cmd/protoc-gen-go"
-	"github.com/micro/go-micro/v2"
+	gwRate "github.com/shellbreaker/protoc-gen-bmicro/gateway/rate"
+	"time"
 )
 
 type E struct {
@@ -27,7 +25,13 @@ func main() {
 		micro.AfterStart(func() error {
 			cli := pb.NewRestFulService("go.rpc.example", rpc.Client())
 
-			pb.RegisterRestFulGateway(cli, gateway.SetCustomError(new(E)))
+			pb.RegisterRestFulGateway(cli,
+				gateway.SetCustomError(new(E)),
+				gateway.SetRateControl(
+					gwRate.NewMemoryAdapter(),
+					gwRate.NewRateLimiting("/api/v1/example", "get", 500*time.Millisecond),
+				),
+			)
 
 			go beego.Run()
 			return nil

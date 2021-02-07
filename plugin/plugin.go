@@ -111,7 +111,9 @@ func (p *Plugin) generateGateway(sg []*serviceGenerator) {
 			srvName := g.service.GetName()
 
 			p.write(`func Register%sGateway(cli %sService, opts ...gw.Option) {
-							settings := gw.Options(opts).Settings()`, srvName, srvName)
+							settings := gw.Options(opts).Settings()
+							settings.InsertRateLimiting()
+			`, srvName, srvName)
 			for _, m := range g.methodExtractors {
 				if m.Extract() == nil {
 					ccMethod, uri := generator.CamelCase(m.GatewayMethod()), m.GatewayURI()
